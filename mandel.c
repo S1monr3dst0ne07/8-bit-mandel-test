@@ -1,7 +1,3 @@
-#include <stdint.h>
-#include <stdio.h>
-#include <stdbool.h>
-#include <math.h>
 
 #include "fp8.h"
 

@@ -1,8 +1,10 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <math.h>
+#include <stdbool.h>
 
 #define SIGN_MASK 0x80
+
 typedef uint8_t fp8;
 
 
@@ -14,12 +16,15 @@ uint8_t getMan(fp8 x)
 int8_t getExp(fp8 x)
 {
     int8_t exp = (x >> 3) & 0b1111;
-    return exp & 0b1000 ? exp | 0b11110000 : exp;
+    return exp | (exp & 0x8 ? 0xf0 : 0x00);
 }
 
 fp8 render(uint8_t man, uint8_t exp, bool sign)
 {
-    return (man & 0b111) | ((exp & 0b1111) << 3) | (sign << 7);
+    return 
+        (man & 0b111) | 
+        ((exp & 0b1111) << 3) | 
+        (sign << 7);
 }
 
 fp8 normal(uint8_t man, uint8_t exp, bool sign)
@@ -27,11 +32,21 @@ fp8 normal(uint8_t man, uint8_t exp, bool sign)
     if (man == 0)
         return render(0, 0x8, sign);
     
+    while ((unsigned)man > 0xf)
+    {
+        man >>= 1;
+        exp++;
+    }
     while (!(man >> 3))
     {
         man <<= 1;
         exp--; 
     }
+
+    if (!(exp & 0x08) && (exp & 0xf0))
+        exp = 0xf8;
+    if ((exp & 0x08) && !(exp & 0xf0))
+        exp = 0x07;
 
     return render(man, exp, sign);
 }
@@ -117,21 +132,11 @@ fp8 mul(fp8 val1, fp8 val2)
 
      int8_t outputExponent = getExp(val1) + getExp(val2);             
 	uint8_t outputMantissa = val1Mantissa * val2Mantissa;
-    
-    if (val1 == value2fp(0)) return val1;
-    if (val2 == value2fp(0)) return val2;
-    
+   
 	int8_t sign = (val1 & SIGN_MASK) ^ (val2 & SIGN_MASK);
 
-	//move the outputMantissa back till it fit back into the char, in the process discarding the precision the we can't keep
-	while ((unsigned)outputMantissa > (1 << 4) - 1)
-	{
-		outputMantissa >>= 1;
-		outputExponent += 1;
-	}
 
-
-	return render(outputMantissa, outputExponent, 0) | (sign ? SIGN_MASK : 0);
+	return normal(outputMantissa, outputExponent, 0) | (sign ? SIGN_MASK : 0);
 }
 
 
@@ -147,7 +152,7 @@ fp8 div(fp8 val1, fp8 val2)
 	int8_t outputExponent = val1Exponent - val2Exponent;
 	uint8_t outputMantissa = val1Mantissa / val2Mantissa;
 
-	return render(outputMantissa, outputExponent, 0); 
+	return normal(outputMantissa, outputExponent, 0); 
 }
 
 
@@ -166,10 +171,13 @@ int comp(fp8 big, fp8 small)
 		return val1Mantissa > val2Mantissa;
 }
 
+float fp2float(fp8 x)
+{
+    return getMan(x) * pow(2.0f, getExp(x)) * ((x & SIGN_MASK) ? -1 : 1);
+}
 void print(fp8 x)
 {
-    float v = getMan(x) * pow(2.0f, getExp(x)) * (x & SIGN_MASK ? -1 : 1);
-    printf("%f\n", v);
+    printf("%f\n", fp2float(x));
 }
 
 
