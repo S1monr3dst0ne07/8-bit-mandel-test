@@ -1,7 +1,9 @@
 
 
-run: build
+run: 
+	gcc mandel.c
 	a
 
-build:
-	gcc mandel.c
+test:
+	gcc test.c
+	a
