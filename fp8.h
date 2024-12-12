@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 #define SIGN_MASK 0x80
+#define EXP_BIAS (3)
 
 typedef uint8_t fp8;
 
@@ -16,7 +17,8 @@ uint8_t getMan(fp8 x)
 int8_t getExp(fp8 x)
 {
     int8_t exp = (x >> 3) & 0b1111;
-    return exp | (exp & 0x8 ? 0xf0 : 0x00);
+    exp = exp | (exp & 0x8 ? 0xf0 : 0x00);
+    return exp - EXP_BIAS;
 }
 
 fp8 render(uint8_t man, uint8_t exp, bool sign)
@@ -42,6 +44,8 @@ fp8 normal(uint8_t man, uint8_t exp, bool sign)
         man <<= 1;
         exp--; 
     }
+
+    exp += EXP_BIAS;
 
     if (!(exp & 0x08) && (exp & 0xf0))
         exp = 0xf8;
