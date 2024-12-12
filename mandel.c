@@ -70,7 +70,6 @@ int main()
             Zx = add(add(Zx2, Zy2 ^ SIGN_MASK), Cx);
             Zx2 = mul(Zx, Zx);
             Zy2 = mul(Zy, Zy);
-
             
         };
                 
@@ -78,7 +77,7 @@ int main()
 
         static unsigned char colors[3];
         colors[0]=(int)gray;
-        colors[1]=(int)gray;
+        colors[1]=(int)0;
         colors[2]=(int)gray;
 
         fwrite(colors, 1, 3, fp);
