@@ -114,14 +114,6 @@ fp8 add(fp8 val1, fp8 val2)
 
 	}
 
-	//check for carry overflow
-	if (outputMantissa & (1 << 4))
-	{
-		outputMantissa >>= 1;
-		outputExponent += 1;
-	}
-
-
 
 	return normal(outputMantissa, outputExponent, outputSign);
 
