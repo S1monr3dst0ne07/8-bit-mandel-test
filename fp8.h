@@ -9,8 +9,8 @@
 typedef uint8_t fp8;
 
 /*
- * old: seeeemmm
- * new: seeemmmm
+ * fp8.4.3: seeeemmm
+ * fp8.3.4: seeemmmm
  *
 */
 
@@ -24,9 +24,9 @@ typedef uint8_t fp8;
 #define expOffset_c (manOffset_c + manSize_c)
 #define manOffset_c 0
 
-#define sgnMask_c 0b00000001 
-#define expMask_c 0b00001111
-#define manMask_c 0b00000111  
+#define sgnMask_c (0xff >> (8 - sgnSize_c)) 
+#define expMask_c (0xff >> (8 - expSize_c))
+#define manMask_c (0xff >> (8 - manSize_c)) 
 
 #define manVirtBit_c (manMask_c + 1)
 #define manVirtMask_c (manVirtBit_c | manMask_c)
@@ -108,6 +108,16 @@ fp8 value2fp(int x)
     return normal(x, exp, false);
 }
 
+float fp2float(fp8 x)
+{
+    return getMan(x) * pow(2.0f, getExp(x)) * ((x & SIGN) ? -1 : 1);
+}
+void print(fp8 x)
+{
+    printf("%f\n", fp2float(x));
+}
+
+
 
 
 void invByte(int8_t* value)
@@ -177,7 +187,7 @@ fp8 mul(fp8 val1, fp8 val2)
 }
 
 
-//does val1 / val2
+//does abs(val1 / val2)
 fp8 div(fp8 val1, fp8 val2)
 {
   //val1 mantissa is shifted to the right as much as possible to compensate for precision loss
@@ -210,14 +220,4 @@ int comp(fp8 big, fp8 small)
 	else
 		return val1Mantissa > val2Mantissa;
 }
-
-float fp2float(fp8 x)
-{
-    return getMan(x) * pow(2.0f, getExp(x)) * ((x & SIGN) ? -1 : 1);
-}
-void print(fp8 x)
-{
-    printf("%f\n", fp2float(x));
-}
-
 
