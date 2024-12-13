@@ -3,43 +3,77 @@
 #include <math.h>
 #include <stdbool.h>
 
-#define SIGN_MASK 0x80
+#define SIGN 0x80
 #define EXP_BIAS (3)
 
 typedef uint8_t fp8;
 
+/*
+ * old: seeeemmm
+ * new: seeemmmm
+ *
+*/
+
+#define sgnSize_c 1
+#define expSize_c 4
+#define manSize_c 3
+
+#define manVirtSize_c (manSize_c + 1)
+
+#define sgnOffset_c (expOffset_c + expSize_c)
+#define expOffset_c (manOffset_c + manSize_c)
+#define manOffset_c 0
+
+#define sgnMask_c 0b00000001 
+#define expMask_c 0b00001111
+#define manMask_c 0b00000111  
+
+#define manVirtBit_c (manMask_c + 1)
+#define manVirtMask_c (manVirtBit_c | manMask_c)
+#define expSignExt_c (~expMask_c)
+#define expSignBit_c (1 << (expSize_c - 1))
+
+#define expMin_c (uint8_t)(0xff << (expSize_c - 1))
+#define expMax_c (uint8_t)(~expMin_c)
+
+//the most significant outta 8
+#define int8Msb_c 0xf0
 
 uint8_t getMan(fp8 x)
 {
-    return (x & 0b111) | 0b1000; 
+    return (x & manMask_c) | manVirtBit_c; 
 }
 
 int8_t getExp(fp8 x)
 {
-    int8_t exp = (x >> 3) & 0b1111;
-    exp = exp | (exp & 0x8 ? 0xf0 : 0x00);
+    int8_t exp = (x >> expOffset_c) & expMask_c;
+    //make sure signs of (byte)exp and exp match
+    if (exp & expSignBit_c) exp |= expSignExt_c; 
     return exp - EXP_BIAS;
 }
 
-fp8 render(uint8_t man, uint8_t exp, bool sign)
+fp8 render(uint8_t man, uint8_t exp, bool sgn)
 {
     return 
-        (man & 0b111) | 
-        ((exp & 0b1111) << 3) | 
-        (sign << 7);
+        ((man & manMask_c) << manOffset_c) | 
+        ((exp & expMask_c) << expOffset_c) | 
+        ((sgn & sgnMask_c) << sgnOffset_c) ; 
 }
 
-fp8 normal(uint8_t man, uint8_t exp, bool sign)
+fp8 normal(uint8_t man, uint8_t exp, bool sgn)
 {
-    if (man == 0)
-        return render(0, 0x8, sign);
+    //zero -> most negative exponent
+    if (!man)
+        return render(0, expMin_c, sgn);
     
-    while ((unsigned)man > 0xf)
+    //compensate overflow
+    while (man > manVirtMask_c)
     {
         man >>= 1;
         exp++;
     }
-    while (!(man >> 3))
+    //align man to virual bit
+    while (!(man & manVirtBit_c))
     {
         man <<= 1;
         exp--; 
@@ -47,18 +81,25 @@ fp8 normal(uint8_t man, uint8_t exp, bool sign)
 
     exp += EXP_BIAS;
 
-    if (!(exp & 0x08) && (exp & 0xf0))
-        exp = 0xf8;
-    if ((exp & 0x08) && !(exp & 0xf0))
-        exp = 0x07;
+    //clamp exponent
+ 
+    if ( //underflow
+      !(exp & expSignBit_c) && //no overflow
+       (exp & int8Msb_c   )    //but negative
+    ) exp = expMin_c;
 
-    return render(man, exp, sign);
+    if ( //overflow
+       (exp & expSignBit_c) && //overflow
+      !(exp & int8Msb_c   )    //not negative
+    ) exp = expMax_c;
+
+    return render(man, exp, sgn);
 }
 
 fp8 value2fp(int x)
 {
     uint8_t exp = 0;
-    while (x >> 4)
+    while (x >> manVirtSize_c)
     {
         x >>= 1;
         exp++;
@@ -99,15 +140,15 @@ fp8 add(fp8 val1, fp8 val2)
 	int8_t valLowMantissaMod = (int8_t)getMan(valLow) >> deltaExponent;
 
 	//apply the sign
-	if (valLow & SIGN_MASK) invByte(&valLowMantissaMod);
-	if (valBig & SIGN_MASK) invByte(&valBigMantissaMod);
+	if (valLow & SIGN) invByte(&valLowMantissaMod);
+	if (valBig & SIGN) invByte(&valBigMantissaMod);
 
 	//do the addition
 	int8_t outputMantissa = valBigMantissaMod + valLowMantissaMod;
 	int8_t outputSign = 0;
 
 	//check for sign and get abs
-	if (outputMantissa & SIGN_MASK)
+	if (outputMantissa & SIGN)
 	{
 		outputSign = 1;
 		invByte(&outputMantissa);
@@ -129,20 +170,23 @@ fp8 mul(fp8 val1, fp8 val2)
      int8_t outputExponent = getExp(val1) + getExp(val2);             
 	uint8_t outputMantissa = val1Mantissa * val2Mantissa;
    
-	int8_t sign = (val1 & SIGN_MASK) ^ (val2 & SIGN_MASK);
+	int8_t sign = (val1 & SIGN) ^ (val2 & SIGN);
 
 
-	return normal(outputMantissa, outputExponent, 0) | (sign ? SIGN_MASK : 0);
+	return normal(outputMantissa, outputExponent, 0) | (sign ? SIGN : 0);
 }
 
 
 //does val1 / val2
 fp8 div(fp8 val1, fp8 val2)
 {
-	uint8_t val1Mantissa = ((int8_t)getMan(val1)) << 4;
+  //val1 mantissa is shifted to the right as much as possible to compensate for precision loss
+  //val1 exponent is decremented to keep val1 the same
+  const int precCompensateOffset = (8 - manVirtSize_c);
+	uint8_t val1Mantissa = ((int8_t)getMan(val1)) << precCompensateOffset;
 	uint8_t val2Mantissa = (int8_t)getMan(val2);
 
-	int8_t val1Exponent = getExp(val1) - 4;
+	int8_t val1Exponent = getExp(val1) - precCompensateOffset;
 	int8_t val2Exponent = getExp(val2);
 
 	int8_t outputExponent = val1Exponent - val2Exponent;
@@ -169,7 +213,7 @@ int comp(fp8 big, fp8 small)
 
 float fp2float(fp8 x)
 {
-    return getMan(x) * pow(2.0f, getExp(x)) * ((x & SIGN_MASK) ? -1 : 1);
+    return getMan(x) * pow(2.0f, getExp(x)) * ((x & SIGN) ? -1 : 1);
 }
 void print(fp8 x)
 {
