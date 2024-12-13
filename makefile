@@ -9,7 +9,7 @@ test:
 	./a
 
 lint:
-	ls mandel.c | entr -s "make run"
+	ls | entr -s "make run"
 
 view:
 	feh -R 1 new.ppm -Z --force-aliasing &
