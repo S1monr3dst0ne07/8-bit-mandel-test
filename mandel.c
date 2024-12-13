@@ -17,18 +17,18 @@ int main()
     const double CyMax= 2.0;
     */
     
-    fp8 CxMin = value2fp(2) | SIGN_MASK;
-    fp8 CxMax = value2fp(1)            ;
-    fp8 CyMin = value2fp(2) | SIGN_MASK;
-    fp8 CyMax = value2fp(2)            ;
+    fp8 CxMin = value2fp(2) | SIGN;
+    fp8 CxMax = value2fp(1)       ;
+    fp8 CyMin = value2fp(2) | SIGN;
+    fp8 CyMax = value2fp(2)       ;
     
     /*
     double PixelWidth  = (CxMax-CxMin) / iXmax;
     double PixelHeight = (CyMax-CyMin) / iYmax;
     */
     
-    fp8 PixelWidth  = div(add(CxMax, CxMin ^ SIGN_MASK), value2fp(iXmax));
-    fp8 PixelHeight = div(add(CyMax, CyMin ^ SIGN_MASK), value2fp(iYmax));
+    fp8 PixelWidth  = div(add(CxMax, CxMin ^ SIGN), value2fp(iXmax));
+    fp8 PixelHeight = div(add(CyMax, CyMin ^ SIGN), value2fp(iYmax));
 
     const int maxIter=10;
 
@@ -67,7 +67,7 @@ int main()
         {
             //printf("%d %d\n", Zy, Zx);
             Zy = add(mul(mul(Zx, Zy), value2fp(2)), Cy);
-            Zx = add(add(Zx2, Zy2 ^ SIGN_MASK), Cx);
+            Zx = add(add(Zx2, Zy2 ^ SIGN), Cx);
             Zx2 = mul(Zx, Zx);
             Zy2 = mul(Zy, Zy);
             
@@ -84,5 +84,7 @@ int main()
     }
 
     fclose(fp);
+
+    printf("done\n");
     return 0;
 }
